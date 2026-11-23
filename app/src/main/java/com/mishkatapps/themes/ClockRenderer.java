@@ -101,6 +101,37 @@ public final class ClockRenderer {
         return ar(Integer.toString(n));
     }
 
+    /** Draws the Gregorian and Hijri dates as two centered lines on a soft pill; returns the y below it. */
+    static float drawDate(Canvas cv, int w, float cx, float y, Typeface tf, Calendar now) {
+        String g = DAYS[now.get(Calendar.DAY_OF_WEEK) - 1] + "  " + ar(now.get(Calendar.DAY_OF_MONTH))
+                + " " + G_MONTHS[now.get(Calendar.MONTH)] + " " + ar(now.get(Calendar.YEAR));
+        String hj = null;
+        try {
+            android.icu.util.IslamicCalendar h = new android.icu.util.IslamicCalendar();
+            h.setCalculationType(android.icu.util.IslamicCalendar.CalculationType.ISLAMIC_UMALQURA);
+            h.setTimeInMillis(now.getTimeInMillis());
+            hj = ar(h.get(android.icu.util.Calendar.DAY_OF_MONTH)) + " " + H_MONTHS[h.get(android.icu.util.Calendar.MONTH)]
+                    + " " + ar(h.get(android.icu.util.Calendar.EXTENDED_YEAR)) + " هـ";
+        } catch (Throwable ignored) {}
+        Paint p1 = text(tf, w * 0.058f, CREAM);
+        Paint p2 = text(tf, w * 0.050f, GOLD);
+        float tw = Math.max(p1.measureText(g), hj == null ? 0 : p2.measureText(hj));
+        float lh1 = p1.getFontSpacing() * 0.95f, lh2 = hj == null ? 0 : p2.getFontSpacing() * 0.95f;
+        float padX = w * 0.05f, padY = w * 0.018f;
+        RectF r = new RectF(cx - tw / 2 - padX, y, cx + tw / 2 + padX, y + lh1 + lh2 + 2 * padY);
+        Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
+        bg.setColor(0x99081433);
+        cv.drawRoundRect(r, w * 0.04f, w * 0.04f, bg);
+        Paint rim = new Paint(Paint.ANTI_ALIAS_FLAG);
+        rim.setStyle(Paint.Style.STROKE);
+        rim.setStrokeWidth(w * 0.0025f);
+        rim.setColor(0x66D9B15C);
+        cv.drawRoundRect(r, w * 0.04f, w * 0.04f, rim);
+        rtl(cv, g, cx, y + padY, w, p1);
+        if (hj != null) rtl(cv, hj, cx, y + padY + lh1, w, p2);
+        return r.bottom;
+    }
+
     public static String dateLine(Calendar now) {
         String g = DAYS[now.get(Calendar.DAY_OF_WEEK) - 1] + " " + ar(now.get(Calendar.DAY_OF_MONTH))
                 + " " + G_MONTHS[now.get(Calendar.MONTH)];
@@ -157,7 +188,7 @@ public final class ClockRenderer {
 
     static void drawStar(Canvas cv, int w, int h, Typeface tf, int level, boolean charging,
                          Calendar now, boolean seconds, boolean verse) {
-        float cx = w / 2f, cy = h * 0.36f;
+        float cx = w / 2f, cy = h * 0.43f;
         float ring = w * 0.355f;
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setStyle(Paint.Style.STROKE);
@@ -190,16 +221,16 @@ public final class ClockRenderer {
 
         float y = cy + ring + w * 0.07f;
         y = batteryPill(cv, w, cx, y, tf, level, charging, true);
-        y += w * 0.02f;
-        rtl(cv, dateLine(now), cx, y, w, text(tf, w * 0.05f, CREAM));
-        if (verse) rtl(cv, VERSE, cx, h * 0.70f, w, text(tf, w * 0.061f, GOLD));
+        y += w * 0.03f;
+        y = drawDate(cv, w, cx, y, tf, now);
+        if (verse) rtl(cv, VERSE, cx, Math.max(y + w * 0.04f, h * 0.83f), w, text(tf, w * 0.058f, GOLD));
     }
 
     // ------------------------------------------------------------------ design B: round dial + lamp battery
 
     static void drawLamp(Canvas cv, int w, int h, Typeface tf, int level, boolean charging,
                          Calendar now, boolean seconds, boolean verse) {
-        float cx = w / 2f, cy = h * 0.30f, rad = w * 0.34f;
+        float cx = w / 2f, cy = h * 0.42f, rad = w * 0.32f;
         Paint f = new Paint(Paint.ANTI_ALIAS_FLAG);
         f.setColor(0x8C081433);
         cv.drawCircle(cx, cy, rad, f);
@@ -218,12 +249,12 @@ public final class ClockRenderer {
         hands(cv, cx, cy, rad * 0.82f, w, now, seconds);
 
         float y = cy + rad + w * 0.035f;
-        rtl(cv, dateLine(now), cx, y, w, text(tf, w * 0.05f, CREAM));
+        y = drawDate(cv, w, cx, y, tf, now);
 
         // lamp from the Mishkat logo, filled to the battery level
-        float lampH = w * 0.40f;
+        float lampH = w * 0.22f;
         float s = lampH / 415f;
-        float top = cy + rad + w * 0.15f;
+        float top = y + w * 0.06f;
         cv.save();
         cv.translate(cx - 500 * s, top - 225 * s);
         cv.scale(s, s);
@@ -261,16 +292,16 @@ public final class ClockRenderer {
         cv.drawPath(flame, fl);
         cv.restore();
 
-        float py = top + lampH + w * 0.03f;
+        float py = top + lampH + w * 0.02f;
         batteryPill(cv, w, cx, py, tf, level, charging, false);
-        if (verse) rtl(cv, VERSE, cx, h * 0.80f, w, text(tf, w * 0.061f, GOLD));
+        if (verse) rtl(cv, VERSE, cx, Math.max(py + w * 0.13f, h * 0.85f), w, text(tf, w * 0.058f, GOLD));
     }
 
     // ------------------------------------------------------------------ design C: AMOLED minimal
 
     static void drawAmoled(Canvas cv, int w, int h, Typeface tf, int level, boolean charging,
                            Calendar now, boolean seconds, boolean verse) {
-        float cx = w / 2f, cy = h * 0.34f, rad = w * 0.33f;
+        float cx = w / 2f, cy = h * 0.42f, rad = w * 0.32f;
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setStyle(Paint.Style.STROKE);
         p.setColor(GOLD);
@@ -282,10 +313,10 @@ public final class ClockRenderer {
         hands(cv, cx, cy, rad * 0.85f, w, now, seconds);
 
         float y = cy + rad + w * 0.05f;
-        rtl(cv, dateLine(now), cx, y, w, text(tf, w * 0.05f, CREAM));
+        y = drawDate(cv, w, cx, y, tf, now);
 
         // battery bar
-        float bw = w * 0.42f, bh = w * 0.033f, by = y + w * 0.13f, bx = cx - bw / 2;
+        float bw = w * 0.42f, bh = w * 0.033f, by = y + w * 0.06f, bx = cx - bw / 2;
         Paint o = new Paint(Paint.ANTI_ALIAS_FLAG);
         o.setStyle(Paint.Style.STROKE);
         o.setColor(GOLD);
@@ -304,12 +335,12 @@ public final class ClockRenderer {
         // outline logo
         float ls = w * 0.17f;
         cv.save();
-        cv.translate(cx - ls / 2, h * 0.74f);
+        cv.translate(cx - ls / 2, by + w * 0.20f);
         cv.scale(ls / 920f, ls / 920f);
         cv.translate(-40, -40);
         drawLogoOutline(cv);
         cv.restore();
-        if (verse) rtl(cv, VERSE, cx, h * 0.86f, w, text(tf, w * 0.052f, 0xFF9E8A5C));
+        if (verse) rtl(cv, VERSE, cx, by + w * 0.20f + ls + w * 0.04f, w, text(tf, w * 0.052f, 0xFF9E8A5C));
     }
 
     // ------------------------------------------------------------------ helpers
@@ -391,7 +422,7 @@ public final class ClockRenderer {
         for (int i = 1; i <= 12; i++) {
             if (!all && i % 3 != 0) continue;
             double a = Math.toRadians(i * 30 - 90);
-            cv.drawText(ar(i), cx + (float) (r * Math.cos(a)), cy + (float) (r * Math.sin(a)) + off, t);
+            cv.drawText(Integer.toString(i), cx + (float) (r * Math.cos(a)), cy + (float) (r * Math.sin(a)) + off, t);
         }
     }
 
