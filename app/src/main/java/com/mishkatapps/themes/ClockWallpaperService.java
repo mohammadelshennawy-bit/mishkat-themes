@@ -107,16 +107,9 @@ public class ClockWallpaperService extends WallpaperService {
             handler.removeCallbacks(tick);
         }
 
-        private int design() {
-            return prefs.getInt(ClockRenderer.KEY_DESIGN, 0);
-        }
-
         private void loadBackground() {
             if (width == 0) return;
-            int d = design();
-            String name = prefs.getString(ClockRenderer.KEY_BG, "");
-            if (name.isEmpty()) name = ClockRenderer.defaultBg(d);
-            if (d == 2) name = null;
+            String name = ClockRenderer.Style.from(prefs).bgFile();
             if (name == null ? bgName == null && bg == null : name.equals(bgName)) return;
             Bitmap old = bg;
             bg = ClockRenderer.loadBg(ClockWallpaperService.this, name, width, height);
@@ -139,10 +132,8 @@ public class ClockWallpaperService extends WallpaperService {
             try {
                 c = holder.lockCanvas();
                 if (c != null) {
-                    ClockRenderer.draw(ClockWallpaperService.this, c, width, height, design(), bg,
-                            level, charging, Calendar.getInstance(),
-                            prefs.getBoolean(ClockRenderer.KEY_SECONDS, true),
-                            prefs.getBoolean(ClockRenderer.KEY_VERSE, true));
+                    ClockRenderer.draw(ClockWallpaperService.this, c, width, height,
+                            ClockRenderer.Style.from(prefs), bg, level, charging, Calendar.getInstance());
                 }
             } catch (Exception ignored) {
             } finally {
