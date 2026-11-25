@@ -65,7 +65,6 @@ public class MainActivity extends Activity {
             "الإعدادات", "الساعة", "التقويم", "الحاسبة", "المتصفح", "الملفات", "الصوتيات", "البريد",
             "الخرائط", "المتجر", "الملاحظات", "الطقس", "المصحف", "الأذكار", "القبلة", "الكشاف", "المسجل"};
 
-    static final String[] DESIGN_NAMES = {"الساعة النجمية", "قنديل المشكاة", "AMOLED البسيطة"};
 
     private static final int REQ_STORAGE = 7;
 
@@ -82,7 +81,8 @@ public class MainActivity extends Activity {
 
     // clock tab state
     private ImageView preview;
-    private LinearLayout designRow, bgRow;
+    private LinearLayout bgRow;
+    private final java.util.List<Object[]> choiceRows = new java.util.ArrayList<>();
 
     @Override
     protected void onCreate(Bundle b) {
@@ -235,6 +235,7 @@ public class MainActivity extends Activity {
         col.setGravity(Gravity.CENTER_HORIZONTAL);
         col.setPadding(px(14), px(6), px(14), px(28));
         sv.addView(col);
+        choiceRows.clear();
 
         preview = new ImageView(this);
         preview.setBackground(round(0xFF05070C, 22, 0));
@@ -243,41 +244,31 @@ public class MainActivity extends Activity {
         int pw = Math.round(getResources().getDisplayMetrics().widthPixels * 0.56f);
         col.addView(preview, new LinearLayout.LayoutParams(pw, Math.round(pw * 2400f / 1080f)));
 
-        col.addView(section("تصميم الساعة"));
-        designRow = new LinearLayout(this);
-        designRow.setOrientation(LinearLayout.HORIZONTAL);
-        for (int i = 0; i < 3; i++) {
-            final int d = i;
-            TextView t = label(DESIGN_NAMES[i], 15, ClockRenderer.CREAM);
-            t.setGravity(Gravity.CENTER);
-            t.setPadding(px(4), px(10), px(4), px(10));
-            t.setOnClickListener(v -> {
-                prefs.edit().putInt(ClockRenderer.KEY_DESIGN, d).apply();
-                refreshClockUi();
-            });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
-            lp.setMargins(px(4), 0, px(4), 0);
-            designRow.addView(t, lp);
-        }
-        col.addView(designRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        choiceRow(col, "شكل الساعة", ClockRenderer.KEY_SHAPE, ClockRenderer.SHAPE_NAMES, 1);
+        choiceRow(col, "لون الساعة", ClockRenderer.KEY_PALETTE, ClockRenderer.PALETTE_NAMES, 0);
+        choiceRow(col, "علامات الساعات", ClockRenderer.KEY_MARKS, ClockRenderer.MARK_NAMES, 1);
+        choiceRow(col, "شكل العقارب", ClockRenderer.KEY_HANDS, ClockRenderer.HAND_NAMES, 0);
+        choiceRow(col, "عرض البطارية", ClockRenderer.KEY_BATTERY, ClockRenderer.BATTERY_NAMES, 0);
 
-        col.addView(section("خلفية الساعة"));
+        col.addView(section("خلفية شاشة القفل"));
         HorizontalScrollView hs = new HorizontalScrollView(this);
         hs.setHorizontalScrollBarEnabled(false);
         bgRow = new LinearLayout(this);
         bgRow.setOrientation(LinearLayout.HORIZONTAL);
         hs.addView(bgRow);
         addBgChoice("", "تلقائي");
+        addBgChoice(ClockRenderer.BG_BLACK, "أسود");
         for (int i = 0; i < WALLS.length; i++) {
             if (WALLS[i].startsWith("02-") || WALLS[i].startsWith("03-")) continue;
             addBgChoice(WALLS[i], WALL_NAMES[i]);
         }
         col.addView(hs, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        CheckBox sec = check("إظهار عقرب الثواني", ClockRenderer.KEY_SECONDS);
-        CheckBox verse = check("إظهار الآية الكريمة", ClockRenderer.KEY_VERSE);
-        col.addView(sec);
-        col.addView(verse);
+        col.addView(section("إظهار وإخفاء"));
+        col.addView(check("علامات الدقائق", ClockRenderer.KEY_TICKS, true));
+        col.addView(check("عقرب الثواني", ClockRenderer.KEY_SECONDS, true));
+        col.addView(check("نافذة التاريخ داخل الساعة", ClockRenderer.KEY_DATEWIN, false));
+        col.addView(check("الآية الكريمة", ClockRenderer.KEY_VERSE, true));
 
         TextView go = label("تفعيل ساعة شاشة القفل", 20, ClockRenderer.DEEP);
         go.setGravity(Gravity.CENTER);
@@ -289,12 +280,38 @@ public class MainActivity extends Activity {
         col.addView(go, glp);
 
         TextView note = label("ستفتح شاشة معاينة النظام: اضغط «تعيين خلفية» واختر «شاشة القفل» إن ظهر لك الاختيار. "
-                + "ساعة الهاتف الأصلية ستظل ظاهرة أعلى شاشة القفل، ويمكنك تصغيرها من إعدادات شاشة القفل. "
-                + "الخلفية الحية تستهلك قدرًا بسيطًا من البطارية؛ إخفاء عقرب الثواني يقلّل ذلك.", 14, 0xFFB9AD8C);
+                + "أي تغيير تجريه هنا بعد التفعيل يظهر على شاشة القفل مباشرة دون إعادة التفعيل. "
+                + "ساعة الهاتف الأصلية تظل ظاهرة أعلى الشاشة، ويمكنك تصغيرها من إعدادات شاشة القفل. "
+                + "إخفاء عقرب الثواني يقلّل استهلاك البطارية.", 14, 0xFFB9AD8C);
         col.addView(note);
 
         refreshClockUi();
         return sv;
+    }
+
+    /** A titled, horizontally scrolling row of choice chips bound to an int preference. */
+    private void choiceRow(LinearLayout col, String title, String key, String[] names, int def) {
+        col.addView(section(title));
+        HorizontalScrollView hs = new HorizontalScrollView(this);
+        hs.setHorizontalScrollBarEnabled(false);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        for (int i = 0; i < names.length; i++) {
+            final int val = i;
+            TextView t = label(names[i], 15, ClockRenderer.CREAM);
+            t.setGravity(Gravity.CENTER);
+            t.setPadding(px(14), px(8), px(14), px(8));
+            t.setOnClickListener(v -> {
+                prefs.edit().putInt(key, val).apply();
+                refreshClockUi();
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.setMargins(px(4), 0, px(4), 0);
+            row.addView(t, lp);
+        }
+        hs.addView(row);
+        col.addView(hs, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        choiceRows.add(new Object[]{key, row, def});
     }
 
     private void addBgChoice(String file, String name) {
@@ -305,9 +322,9 @@ public class MainActivity extends Activity {
         ImageView img = new ImageView(this);
         img.setScaleType(ImageView.ScaleType.CENTER_CROP);
         img.setClipToOutline(true);
-        img.setBackground(round(ClockRenderer.NAVY, 8, 0));
-        if (!file.isEmpty()) loadThumb("thumbs/" + file, img);
-        else img.setImageResource(R.drawable.logo);
+        img.setBackground(round(ClockRenderer.BG_BLACK.equals(file) ? 0xFF000000 : ClockRenderer.NAVY, 8, 0));
+        if (file.isEmpty()) img.setImageResource(R.drawable.logo);
+        else if (!ClockRenderer.BG_BLACK.equals(file)) loadThumb("thumbs/" + file, img);
         cell.addView(img, new LinearLayout.LayoutParams(px(64), px(110)));
         TextView t = label(name, 11, ClockRenderer.CREAM);
         t.setGravity(Gravity.CENTER);
@@ -323,13 +340,13 @@ public class MainActivity extends Activity {
         bgRow.addView(cell, lp);
     }
 
-    private CheckBox check(String text, String key) {
+    private CheckBox check(String text, String key, boolean def) {
         CheckBox c = new CheckBox(this);
         c.setText(text);
         c.setTypeface(font);
         c.setTextSize(16);
         c.setTextColor(ClockRenderer.CREAM);
-        c.setChecked(prefs.getBoolean(key, true));
+        c.setChecked(prefs.getBoolean(key, def));
         c.setOnCheckedChangeListener((b, on) -> {
             prefs.edit().putBoolean(key, on).apply();
             refreshClockUi();
@@ -339,30 +356,30 @@ public class MainActivity extends Activity {
 
     private void refreshClockUi() {
         if (preview == null) return;
-        int design = prefs.getInt(ClockRenderer.KEY_DESIGN, 0);
-        String bg = prefs.getString(ClockRenderer.KEY_BG, "");
-        for (int i = 0; i < designRow.getChildCount(); i++) {
-            TextView t = (TextView) designRow.getChildAt(i);
-            boolean on = i == design;
-            t.setBackground(round(on ? ClockRenderer.GOLD : 0x00000000, 14, on ? 0 : 0x66D9B15C));
-            t.setTextColor(on ? ClockRenderer.DEEP : ClockRenderer.CREAM);
+        final ClockRenderer.Style st = ClockRenderer.Style.from(prefs);
+        for (Object[] cr : choiceRows) {
+            String key = (String) cr[0];
+            LinearLayout row = (LinearLayout) cr[1];
+            int sel = prefs.getInt(key, (Integer) cr[2]);
+            for (int i = 0; i < row.getChildCount(); i++) {
+                TextView t = (TextView) row.getChildAt(i);
+                boolean on = i == sel;
+                t.setBackground(round(on ? ClockRenderer.GOLD : 0x00000000, 14, on ? 0 : 0x66D9B15C));
+                t.setTextColor(on ? ClockRenderer.DEEP : ClockRenderer.CREAM);
+            }
         }
         for (int i = 0; i < bgRow.getChildCount(); i++) {
             View c = bgRow.getChildAt(i);
-            boolean on = bg.equals(c.getTag());
+            boolean on = st.bg.equals(c.getTag());
             c.setBackground(on ? round(0x00000000, 10, ClockRenderer.GOLD) : null);
-            c.setAlpha(design == 2 ? 0.35f : 1f);
         }
         final ImageView target = preview;
-        final boolean seconds = prefs.getBoolean(ClockRenderer.KEY_SECONDS, true);
-        final boolean verse = prefs.getBoolean(ClockRenderer.KEY_VERSE, true);
         pool.execute(() -> {
             int w = 540, h = 1200;
-            String name = bg.isEmpty() ? ClockRenderer.defaultBg(design) : bg;
-            Bitmap bgb = design == 2 ? null : ClockRenderer.loadBg(this, name, w, h);
+            Bitmap bgb = ClockRenderer.loadBg(this, st.bgFile(), w, h);
             Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             Canvas c = new Canvas(out);
-            ClockRenderer.draw(this, c, w, h, design, bgb, 85, true, Calendar.getInstance(), seconds, verse);
+            ClockRenderer.draw(this, c, w, h, st, bgb, 85, true, Calendar.getInstance());
             if (bgb != null) bgb.recycle();
             runOnUiThread(() -> target.setImageBitmap(out));
         });
@@ -476,7 +493,7 @@ public class MainActivity extends Activity {
             }
             final int saved = ok;
             runOnUiThread(() -> toast(saved > 0
-                    ? "حُفظت " + ClockRenderer.ar(saved) + " أيقونة في الصور ← مجلد MishkatThemes"
+                    ? "حُفظت " + saved + " أيقونة في الصور ← مجلد MishkatThemes"
                     : "تعذّر حفظ الأيقونات"));
         });
     }
